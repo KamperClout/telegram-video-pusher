@@ -7,5 +7,10 @@ services:
       VIDEO_DOWNLOAD_DIR: /tmp/telegram-video
       VIDEO_DOWNLOAD_TIMEOUT: ${VIDEO_DOWNLOAD_TIMEOUT:-5m}
       VIDEO_MAX_FILE_SIZE: ${VIDEO_MAX_FILE_SIZE:-52428800}
+    # The default resolvers return no A records for youtube.com on some providers,
+    # so yt-dlp fails with "Name or service not known". Quad9 answers correctly.
+    dns:
+      - 9.9.9.9
+      - 149.112.112.112
     tmpfs:
       - /tmp/telegram-video

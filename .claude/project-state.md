@@ -102,6 +102,8 @@ Telegram Video Sending
   `DownloadedVideo.workDir`: the caller removes it after the video has been sent.
 * yt-dlp output is redirected to `yt-dlp.log` inside the temporary directory,
   so the process cannot block on a full pipe; the log is parsed only on failure.
+* `VideoDownloadService` takes the largest file in the temporary directory: yt-dlp can
+  leave intermediate video/audio streams next to the merged MP4.
 * The bot class only talks to Telegram; the flow lives in `VideoRequestService`.
 * `TelegramMessageService` and `FileCleanupService` never throw: a failed reply or a
   failed cleanup must not break the user flow.
@@ -113,9 +115,15 @@ Telegram Video Sending
 
 ## Known Problems
 
+* The default DNS resolvers on the developer's provider return no A record for
+  `www.youtube.com`, so yt-dlp failed with `[Errno -2] Name or service not known`.
+  `compose.yaml` pins Quad9 (`9.9.9.9`) for the container, which resolves it correctly.
+  TikTok was never affected.
+* yt-dlp warns that no JavaScript runtime (deno) is available in the image;
+  some YouTube formats may be missing. Installing deno would remove the warning.
+
 * yt-dlp and FFmpeg are not installed on the development machine on purpose:
-  they are provided by the Docker image. The download path is verified only by
-  unit tests so far, never against a real video.
+  they are provided by the Docker image.
 * Maven is not installed system-wide. The build was run with the Maven bundled with IntelliJ IDEA
   (`C:\Program Files\JetBrains\IntelliJ IDEA 2024.2.5\plugins\maven\lib\maven3\bin\mvn.cmd`)
   and `JAVA_HOME` pointed at `C:\Users\Pavel\.jdks\corretto-21.0.7`

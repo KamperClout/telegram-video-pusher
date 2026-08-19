@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -115,14 +116,23 @@ public class VideoDownloadService {
 
     private Path findDownloadedFile(Path workDir) {
         try (Stream<Path> files = Files.list(workDir)) {
+            // yt-dlp may leave intermediate streams next to the merged file, so take the largest one.
             Optional<Path> file = files
                     .filter(Files::isRegularFile)
                     .filter(path -> !LOG_FILE_NAME.equals(path.getFileName().toString()))
-                    .findFirst();
+                    .max(Comparator.comparingLong(this::sizeOf));
             return file.orElseThrow(() -> new VideoDownloadException(Reason.FILE_MISSING,
                     "yt-dlp produced no file in " + workDir));
         } catch (IOException e) {
             throw new VideoDownloadException(Reason.FILE_MISSING, "Failed to list " + workDir, e);
+        }
+    }
+
+    private long sizeOf(Path path) {
+        try {
+            return Files.size(path);
+        } catch (IOException e) {
+            return 0L;
         }
     }
 
