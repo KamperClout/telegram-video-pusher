@@ -2,7 +2,8 @@
 
 ## Status
 
-Spring Boot skeleton created. Build and tests pass.
+Telegram bot is configured: it starts, receives updates and answers `/start`.
+Build and tests pass.
 
 ## Implemented
 
@@ -11,13 +12,21 @@ Spring Boot skeleton created. Build and tests pass.
 * Main class `com.example.telegramvideo.TelegramVideoApplication`.
 * `src/main/resources/application.yml` with the application name.
 * Smoke test `TelegramVideoApplicationTests.contextLoads`.
-* `.gitignore`.
+* `.gitignore`, Git repository, remote `origin`
+  (https://github.com/KamperClout/telegram-video-pusher).
+* Telegram bot `com.example.telegramvideo.bot.TelegramVideoBot`:
+  long polling, `/start` answer, a short hint for any other text message.
+* Bot token is read from `TELEGRAM_BOT_TOKEN` via `telegram.bot.token`.
 
-Business logic is not implemented yet.
+URL validation, downloading and video sending are not implemented yet.
 
 ## Architecture
 
-Not implemented yet.
+Implemented:
+
+```text
+Telegram Bot (TelegramVideoBot)
+```
 
 Planned architecture:
 
@@ -36,7 +45,7 @@ Telegram Video Sending
 * Java 21
 * Spring Boot 3.3.5
 * Maven
-* Telegram Bot API
+* Telegram Bot API (org.telegram:telegrambots 10.2.0)
 * yt-dlp
 * FFmpeg
 * Docker
@@ -53,6 +62,12 @@ Telegram Video Sending
 * Secrets must be provided through environment variables.
 * Base package: `com.example.telegramvideo`.
 * Plain `spring-boot-starter` is used, not `spring-boot-starter-web`: the MVP has no web application.
+* Telegram library: `telegrambots-springboot-longpolling-starter` + `telegrambots-client` 10.2.0
+  (the old `telegrambots-spring-boot-starter` is frozen at 6.9.7.1).
+* API v10 does not need the bot username, so only `TELEGRAM_BOT_TOKEN` is used.
+* `TELEGRAM_BOT_TOKEN` has no default: the application fails fast if it is not set.
+* Tests exclude `TelegramBotStarterConfiguration` (`src/test/resources/application.yml`),
+  so tests never connect to Telegram.
 
 ## Known Problems
 
@@ -63,12 +78,12 @@ Telegram Video Sending
 
 ## Current Task
 
-Configure the Telegram bot.
+Implement URL validation and platform detection.
 
 ## Next Steps
 
-1. Configure the Telegram bot (env-based credentials, `/start`).
-2. Implement URL validation and platform detection.
-3. Implement the yt-dlp downloader.
-4. Send downloaded videos back to Telegram.
+1. Implement URL validation and platform detection (`UrlValidationService`).
+2. Implement the yt-dlp downloader (`VideoDownloadService`).
+3. Send downloaded videos back to Telegram (`TelegramVideoService`).
+4. Add temporary file cleanup, rate limiting and error handling.
 5. Add Docker support.

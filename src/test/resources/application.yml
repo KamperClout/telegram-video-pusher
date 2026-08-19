@@ -1,0 +1,8 @@
+spring:
+  # The bot must not connect to Telegram during tests.
+  autoconfigure:
+    exclude: org.telegram.telegrambots.longpolling.starter.TelegramBotStarterConfiguration
+
+telegram:
+  bot:
+    token: test-token
