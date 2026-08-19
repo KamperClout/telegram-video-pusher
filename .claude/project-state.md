@@ -3,8 +3,9 @@
 ## Status
 
 Telegram bot answers `/start`. URL validation and the yt-dlp downloader are implemented.
-Docker files are written but the image has not been built yet (Docker engine was not
-running). A real download has not been executed yet.
+The image is built and the bot runs in Docker: it connects to the Telegram API and
+answers `/start`. yt-dlp 2026.07.04 and FFmpeg 8.0.1 are present in the image.
+A real download has not been executed yet: the downloader is not wired into the bot.
 
 ## Implemented
 
@@ -23,7 +24,8 @@ running). A real download has not been executed yet.
   `INVALID_URL` from `UNSUPPORTED_PLATFORM`. Covered by unit tests.
 
 * `Dockerfile` (multi-stage: Maven build, `eclipse-temurin:21-jre` runtime with
-  yt-dlp and FFmpeg), `compose.yaml`, `.dockerignore`, `.env.example`. Not built yet.
+  yt-dlp and FFmpeg), `compose.yaml`, `.dockerignore`, `.env.example`.
+  Image builds and runs; the bot token is taken from an uncommitted `.env`.
 * `com.example.telegramvideo.download`: `VideoDownloadService`, `DownloadedVideo`,
   `VideoDownloadException` (with `Reason`), `VideoDownloadProperties`.
   Runs yt-dlp through `ProcessBuilder` with `--no-playlist`, MP4 preference and a timeout;
@@ -92,6 +94,8 @@ Telegram Video Sending
 * yt-dlp output is redirected to `yt-dlp.log` inside the temporary directory,
   so the process cannot block on a full pipe; the log is parsed only on failure.
 * The application is run through Docker; nothing is installed on the development machine.
+* The runtime image creates its own `app` user without a fixed uid:
+  `eclipse-temurin:21-jre` already occupies uid 1000.
 * Tests exclude `TelegramBotStarterConfiguration` (`src/test/resources/application.yml`),
   so tests never connect to Telegram.
 
@@ -100,7 +104,6 @@ Telegram Video Sending
 * yt-dlp and FFmpeg are not installed on the development machine on purpose:
   they are provided by the Docker image. The download path is verified only by
   unit tests so far, never against a real video.
-* The Docker image has not been built yet: the Docker Desktop engine was not running.
 * Maven is not installed system-wide. The build was run with the Maven bundled with IntelliJ IDEA
   (`C:\Program Files\JetBrains\IntelliJ IDEA 2024.2.5\plugins\maven\lib\maven3\bin\mvn.cmd`)
   and `JAVA_HOME` pointed at `C:\Users\Pavel\.jdks\corretto-21.0.7`
@@ -108,12 +111,11 @@ Telegram Video Sending
 
 ## Current Task
 
-Build the Docker image and check that the bot starts inside the container.
+Send downloaded videos back to Telegram (`TelegramVideoService`).
 
 ## Next Steps
 
-1. Build the image and run the bot in Docker.
-2. Send downloaded videos back to Telegram (`TelegramVideoService`).
-3. Wire the bot to url validation, downloading and sending; add `FileCleanupService`
+1. Send downloaded videos back to Telegram (`TelegramVideoService`).
+2. Wire the bot to url validation, downloading and sending; add `FileCleanupService`
    and user-facing error messages.
-4. Add concurrent downloads and in-memory rate limiting.
+3. Add concurrent downloads and in-memory rate limiting.

@@ -20,7 +20,8 @@ RUN apt-get update \
     && chmod +x /usr/local/bin/yt-dlp \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd --create-home --uid 1000 app
+# The base image already uses uid 1000, so let useradd pick a free one.
+RUN useradd --create-home app
 USER app
 
 WORKDIR /app
