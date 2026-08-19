@@ -1,6 +1,5 @@
 target/
-*.class
-*.log
+.git/
 .idea/
+.claude/
 *.iml
-.env
