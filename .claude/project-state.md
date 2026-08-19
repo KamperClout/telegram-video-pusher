@@ -24,6 +24,9 @@ A real download has not been executed yet: the downloader is not wired into the 
   of failures to user-facing messages. Covered by unit tests.
 * `com.example.telegramvideo.ratelimit`: `RateLimitService` (fixed one-minute window per
   chat, in memory), `RateLimitProperties`, `ClockConfig`. Covered by unit tests.
+* Downloads stop early when the file would exceed the limit: `--max-filesize` plus a height
+  cap (`VIDEO_MAX_HEIGHT`, default 1080). yt-dlp exits with code 0 in that case and can leave
+  an audio stream behind, so its output is checked before a file is picked.
 * `DownloadExecutorConfig`: a bounded pool (`VIDEO_DOWNLOAD_POOL_SIZE`, default 2) with a
   bounded queue (`VIDEO_DOWNLOAD_QUEUE_SIZE`, default 10); a full queue is answered with
   "try later" instead of silent waiting.
@@ -39,7 +42,8 @@ A real download has not been executed yet: the downloader is not wired into the 
   `INVALID_URL` from `UNSUPPORTED_PLATFORM`. Covered by unit tests.
 
 * `Dockerfile` (multi-stage: Maven build, `eclipse-temurin:21-jre` runtime with
-  yt-dlp, FFmpeg and deno), `compose.yaml`, `.dockerignore`, `.env.example`.
+  yt-dlp, FFmpeg and deno), `compose.yaml`, `compose.server.yaml`, `.dockerignore`,
+  `.env.example`.
   Image builds and runs; the bot token is taken from an uncommitted `.env`.
 * `com.example.telegramvideo.download`: `VideoDownloadService`, `DownloadedVideo`,
   `VideoDownloadException` (with `Reason`), `VideoDownloadProperties`.
@@ -126,9 +130,10 @@ Telegram Video Sending
 
 * Rate limit windows are kept in a `ConcurrentHashMap` that is never pruned; entries of
   chats that never come back stay in memory. Harmless at MVP scale.
-* Videos are downloaded in full before the size limit is checked, so a large video wastes
-  traffic and time before the user is told it is too big. `--max-filesize` and a height
-  cap would fix this; not implemented yet.
+* There is a single bot token, so only one instance may run at a time. The server instance
+  is the live one; the local container must stay stopped while it runs.
+* The image is transferred with `docker save | ssh | docker load` (~1.3 GB, minutes over a
+  home uplink). A registry would be faster but needs an account.
 
 * The default DNS resolvers on the developer's provider return no A record for
   `www.youtube.com`, so yt-dlp failed with `[Errno -2] Name or service not known`.
