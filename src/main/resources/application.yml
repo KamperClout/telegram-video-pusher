@@ -12,3 +12,8 @@ video:
     download-dir: ${VIDEO_DOWNLOAD_DIR:${java.io.tmpdir}/telegram-video}
     timeout: ${VIDEO_DOWNLOAD_TIMEOUT:5m}
     max-file-size: ${VIDEO_MAX_FILE_SIZE:52428800}
+    pool-size: ${VIDEO_DOWNLOAD_POOL_SIZE:2}
+    queue-size: ${VIDEO_DOWNLOAD_QUEUE_SIZE:10}
+
+rate-limit:
+  max-requests-per-minute: ${RATE_LIMIT_MAX_REQUESTS_PER_MINUTE:5}

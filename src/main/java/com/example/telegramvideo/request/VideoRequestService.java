@@ -7,8 +7,11 @@ import com.example.telegramvideo.download.DownloadedVideo;
 import com.example.telegramvideo.download.FileCleanupService;
 import com.example.telegramvideo.download.VideoDownloadException;
 import com.example.telegramvideo.download.VideoDownloadService;
+import com.example.telegramvideo.ratelimit.RateLimitService;
 import com.example.telegramvideo.url.UrlValidationResult;
 import com.example.telegramvideo.url.UrlValidationService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,10 @@ public class VideoRequestService {
     static final String TIMEOUT_MESSAGE = "Скачивание заняло слишком много времени. Попробуй видео покороче.";
     static final String FILE_TOO_LARGE_MESSAGE = "Видео слишком большое, Telegram не пропустит такой файл.";
     static final String DOWNLOAD_FAILED_MESSAGE = "Не удалось скачать видео. Попробуй ещё раз позже.";
+    static final String RATE_LIMITED_MESSAGE =
+            "Слишком много запросов. Подожди минуту и пришли ссылку ещё раз.";
+    static final String BUSY_MESSAGE =
+            "Сейчас слишком много загрузок. Попробуй ещё раз через пару минут.";
     static final String SEND_FAILED_MESSAGE = "Видео скачалось, но отправить его не получилось. Попробуй ещё раз.";
 
     private final UrlValidationService urlValidationService;
@@ -38,32 +45,56 @@ public class VideoRequestService {
     private final TelegramVideoService telegramVideoService;
     private final TelegramMessageService telegramMessageService;
     private final FileCleanupService fileCleanupService;
+    private final RateLimitService rateLimitService;
+    private final ExecutorService downloadExecutor;
 
     public VideoRequestService(UrlValidationService urlValidationService,
                                VideoDownloadService videoDownloadService,
                                TelegramVideoService telegramVideoService,
                                TelegramMessageService telegramMessageService,
-                               FileCleanupService fileCleanupService) {
+                               FileCleanupService fileCleanupService,
+                               RateLimitService rateLimitService,
+                               ExecutorService downloadExecutor) {
         this.urlValidationService = urlValidationService;
         this.videoDownloadService = videoDownloadService;
         this.telegramVideoService = telegramVideoService;
         this.telegramMessageService = telegramMessageService;
         this.fileCleanupService = fileCleanupService;
+        this.rateLimitService = rateLimitService;
+        this.downloadExecutor = downloadExecutor;
     }
 
     public void handle(Long chatId, String text) {
+        if (!rateLimitService.tryAcquire(chatId)) {
+            telegramMessageService.sendText(chatId, RATE_LIMITED_MESSAGE);
+            return;
+        }
+
         UrlValidationResult validation = urlValidationService.validate(text);
 
         switch (validation.status()) {
             case INVALID_URL -> telegramMessageService.sendText(chatId, INVALID_URL_MESSAGE);
             case UNSUPPORTED_PLATFORM -> telegramMessageService.sendText(chatId, UNSUPPORTED_PLATFORM_MESSAGE);
-            case VALID -> downloadAndSend(chatId, text.trim(), validation);
+            case VALID -> submit(chatId, text.trim(), validation);
         }
     }
 
-    private void downloadAndSend(Long chatId, String url, UrlValidationResult validation) {
-        telegramMessageService.sendText(chatId, DOWNLOAD_STARTED_MESSAGE);
+    /**
+     * The download runs in its own pool: the Telegram update loop must stay free.
+     */
+    private void submit(Long chatId, String url, UrlValidationResult validation) {
+        try {
+            downloadExecutor.execute(() -> downloadAndSend(chatId, url, validation));
+        } catch (RejectedExecutionException e) {
+            log.warn("Download queue is full, rejected a request from chat {}", chatId);
+            telegramMessageService.sendText(chatId, BUSY_MESSAGE);
+            return;
+        }
 
+        telegramMessageService.sendText(chatId, DOWNLOAD_STARTED_MESSAGE);
+    }
+
+    private void downloadAndSend(Long chatId, String url, UrlValidationResult validation) {
         DownloadedVideo video = null;
         try {
             video = videoDownloadService.download(url, validation.platform());

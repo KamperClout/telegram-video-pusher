@@ -17,10 +17,13 @@ import com.example.telegramvideo.download.FileCleanupService;
 import com.example.telegramvideo.download.VideoDownloadException;
 import com.example.telegramvideo.download.VideoDownloadException.Reason;
 import com.example.telegramvideo.download.VideoDownloadService;
+import com.example.telegramvideo.ratelimit.RateLimitService;
 import com.example.telegramvideo.url.Platform;
 import com.example.telegramvideo.url.UrlValidationResult;
 import com.example.telegramvideo.url.UrlValidationService;
 import java.nio.file.Path;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -36,10 +39,46 @@ class VideoRequestServiceTest {
     private final TelegramVideoService telegramVideoService = mock(TelegramVideoService.class);
     private final TelegramMessageService telegramMessageService = mock(TelegramMessageService.class);
     private final FileCleanupService fileCleanupService = mock(FileCleanupService.class);
+    private final RateLimitService rateLimitService = mock(RateLimitService.class);
+
+    /** Runs submitted downloads on the calling thread, so the tests stay deterministic. */
+    private final ExecutorService downloadExecutor = mock(ExecutorService.class);
 
     private final VideoRequestService service = new VideoRequestService(
             urlValidationService, videoDownloadService, telegramVideoService,
-            telegramMessageService, fileCleanupService);
+            telegramMessageService, fileCleanupService, rateLimitService, downloadExecutor);
+
+    @org.junit.jupiter.api.BeforeEach
+    void allowRequestsAndRunInline() {
+        when(rateLimitService.tryAcquire(any())).thenReturn(true);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(downloadExecutor).execute(any(Runnable.class));
+    }
+
+    @Test
+    void answersWhenTheChatIsOverTheRateLimit() {
+        when(rateLimitService.tryAcquire(CHAT_ID)).thenReturn(false);
+
+        service.handle(CHAT_ID, URL);
+
+        verify(telegramMessageService).sendText(CHAT_ID, VideoRequestService.RATE_LIMITED_MESSAGE);
+        verifyNoInteractions(urlValidationService, videoDownloadService, telegramVideoService);
+    }
+
+    @Test
+    void answersWhenTheDownloadQueueIsFull() {
+        acceptUrl();
+        org.mockito.Mockito.doThrow(new RejectedExecutionException())
+                .when(downloadExecutor).execute(any(Runnable.class));
+
+        service.handle(CHAT_ID, URL);
+
+        verify(telegramMessageService).sendText(CHAT_ID, VideoRequestService.BUSY_MESSAGE);
+        verify(telegramMessageService, never()).sendText(CHAT_ID, VideoRequestService.DOWNLOAD_STARTED_MESSAGE);
+        verifyNoInteractions(videoDownloadService, telegramVideoService);
+    }
 
     private final DownloadedVideo downloadedVideo = new DownloadedVideo(
             "download-1", Platform.YOUTUBE, Path.of("work", "video.mp4"), Path.of("work"), 1024L);

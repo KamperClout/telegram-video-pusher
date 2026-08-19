@@ -13,3 +13,8 @@ video:
     download-dir: ${java.io.tmpdir}/telegram-video-test
     timeout: 5m
     max-file-size: 52428800
+    pool-size: 2
+    queue-size: 10
+
+rate-limit:
+  max-requests-per-minute: 5
