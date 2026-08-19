@@ -34,7 +34,7 @@ A real download has not been executed yet: the downloader is not wired into the 
   `INVALID_URL` from `UNSUPPORTED_PLATFORM`. Covered by unit tests.
 
 * `Dockerfile` (multi-stage: Maven build, `eclipse-temurin:21-jre` runtime with
-  yt-dlp and FFmpeg), `compose.yaml`, `.dockerignore`, `.env.example`.
+  yt-dlp, FFmpeg and deno), `compose.yaml`, `.dockerignore`, `.env.example`.
   Image builds and runs; the bot token is taken from an uncommitted `.env`.
 * `com.example.telegramvideo.download`: `VideoDownloadService`, `DownloadedVideo`,
   `VideoDownloadException` (with `Reason`), `VideoDownloadProperties`.
@@ -108,6 +108,8 @@ Telegram Video Sending
 * `TelegramMessageService` and `FileCleanupService` never throw: a failed reply or a
   failed cleanup must not break the user flow.
 * The application is run through Docker; nothing is installed on the development machine.
+* The image carries deno (copied from `denoland/deno:bin`) because yt-dlp needs a
+  JavaScript runtime to read all YouTube formats.
 * The runtime image creates its own `app` user without a fixed uid:
   `eclipse-temurin:21-jre` already occupies uid 1000.
 * Tests exclude `TelegramBotStarterConfiguration` (`src/test/resources/application.yml`),
@@ -119,8 +121,6 @@ Telegram Video Sending
   `www.youtube.com`, so yt-dlp failed with `[Errno -2] Name or service not known`.
   `compose.yaml` pins Quad9 (`9.9.9.9`) for the container, which resolves it correctly.
   TikTok was never affected.
-* yt-dlp warns that no JavaScript runtime (deno) is available in the image;
-  some YouTube formats may be missing. Installing deno would remove the warning.
 
 * yt-dlp and FFmpeg are not installed on the development machine on purpose:
   they are provided by the Docker image.

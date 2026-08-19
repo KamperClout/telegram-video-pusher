@@ -20,6 +20,10 @@ RUN apt-get update \
     && chmod +x /usr/local/bin/yt-dlp \
     && rm -rf /var/lib/apt/lists/*
 
+# YouTube hides some formats behind JavaScript; yt-dlp needs a JS runtime to read them.
+COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
+RUN chmod +x /usr/local/bin/deno
+
 # The base image already uses uid 1000, so let useradd pick a free one.
 RUN useradd --create-home app
 USER app
