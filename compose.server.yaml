@@ -1,0 +1,21 @@
+# Server configuration: 1 vCPU / 1 GB RAM.
+# Used as: docker compose -f compose.server.yaml up -d
+services:
+  bot:
+    image: telegram-video-bot:latest
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
+      VIDEO_DOWNLOAD_DIR: /var/tmp/telegram-video
+      # One download at a time: a single core and 1 GB of RAM cannot do more.
+      VIDEO_DOWNLOAD_POOL_SIZE: 1
+      VIDEO_DOWNLOAD_QUEUE_SIZE: 5
+      # The JVM must know the container limit, otherwise it sizes the heap for the whole host.
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=60
+    # Temporary files go to disk, not to a tmpfs: RAM here is too small to hold a video.
+    volumes:
+      - downloads:/var/tmp/telegram-video
+    mem_limit: 700m
+
+volumes:
+  downloads:
