@@ -4,7 +4,7 @@
 
 Telegram bot answers `/start`. URL validation and the yt-dlp downloader are implemented.
 The image is built and the bot runs in Docker: it connects to the Telegram API and
-answers `/start`. yt-dlp 2026.07.04 and FFmpeg 8.0.1 are present in the image.
+answers `/start`. Video sending is implemented but not wired into the bot yet. yt-dlp 2026.07.04 and FFmpeg 8.0.1 are present in the image.
 A real download has not been executed yet: the downloader is not wired into the bot.
 
 ## Implemented
@@ -19,6 +19,10 @@ A real download has not been executed yet: the downloader is not wired into the 
 * Telegram bot `com.example.telegramvideo.bot.TelegramVideoBot`:
   long polling, `/start` answer, a short hint for any other text message.
 * Bot token is read from `TELEGRAM_BOT_TOKEN` via `telegram.bot.token`.
+* `com.example.telegramvideo.bot.TelegramVideoService`: sends a downloaded file with
+  `SendVideo` (`supportsStreaming`), wraps Telegram failures into `TelegramSendException`.
+* `TelegramClientConfig`: a single shared `TelegramClient` bean used by the bot and by
+  `TelegramVideoService`.
 * `com.example.telegramvideo.url`: `UrlValidationService`, `Platform`, `UrlValidationResult`.
   Detects YouTube (incl. `youtu.be`), TikTok, Instagram; distinguishes
   `INVALID_URL` from `UNSUPPORTED_PLATFORM`. Covered by unit tests.
@@ -31,9 +35,9 @@ A real download has not been executed yet: the downloader is not wired into the 
   Runs yt-dlp through `ProcessBuilder` with `--no-playlist`, MP4 preference and a timeout;
   each download uses its own temporary directory and the directory is removed on failure.
 
-`UrlValidationService` and `VideoDownloadService` are not wired into the bot yet:
-the bot still answers any text with a hint. Sending videos back and cleanup of a
-successful download are not implemented yet.
+`UrlValidationService`, `VideoDownloadService` and `TelegramVideoService` are not wired
+into the bot yet: the bot still answers any text with a hint. Cleanup of a successful
+download is not implemented yet.
 
 ## Architecture
 
@@ -45,6 +49,8 @@ Telegram Bot (TelegramVideoBot)
 URL Validation (UrlValidationService)     [not wired into the bot yet]
     ↓
 Video Download (VideoDownloadService)     [not wired into the bot yet]
+    ↓
+Video Sending (TelegramVideoService)      [not wired into the bot yet]
 ```
 
 Planned architecture:
@@ -111,11 +117,11 @@ Telegram Video Sending
 
 ## Current Task
 
-Send downloaded videos back to Telegram (`TelegramVideoService`).
+Wire the bot to url validation, downloading and sending; add `FileCleanupService`
+and user-facing error messages.
 
 ## Next Steps
 
-1. Send downloaded videos back to Telegram (`TelegramVideoService`).
-2. Wire the bot to url validation, downloading and sending; add `FileCleanupService`
+1. Wire the bot to url validation, downloading and sending; add `FileCleanupService`
    and user-facing error messages.
 3. Add concurrent downloads and in-memory rate limiting.

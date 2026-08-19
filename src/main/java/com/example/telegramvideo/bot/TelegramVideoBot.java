@@ -4,7 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer;
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
@@ -30,9 +29,9 @@ public class TelegramVideoBot implements SpringLongPollingBot, LongPollingSingle
     private final String botToken;
     private final TelegramClient telegramClient;
 
-    public TelegramVideoBot(@Value("${telegram.bot.token}") String botToken) {
+    public TelegramVideoBot(@Value("${telegram.bot.token}") String botToken, TelegramClient telegramClient) {
         this.botToken = botToken;
-        this.telegramClient = new OkHttpTelegramClient(botToken);
+        this.telegramClient = telegramClient;
     }
 
     @Override
