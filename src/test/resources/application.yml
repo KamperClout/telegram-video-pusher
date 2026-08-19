@@ -6,3 +6,10 @@ spring:
 telegram:
   bot:
     token: test-token
+
+video:
+  download:
+    yt-dlp-path: yt-dlp
+    download-dir: ${java.io.tmpdir}/telegram-video-test
+    timeout: 5m
+    max-file-size: 52428800

@@ -2,8 +2,9 @@
 
 ## Status
 
-Telegram bot answers `/start`. URL validation and platform detection are implemented.
-Build and tests pass.
+Telegram bot answers `/start`. URL validation and the yt-dlp downloader are implemented.
+Build and tests pass. A real download has not been executed yet: yt-dlp and FFmpeg
+are not installed on the development machine.
 
 ## Implemented
 
@@ -21,8 +22,14 @@ Build and tests pass.
   Detects YouTube (incl. `youtu.be`), TikTok, Instagram; distinguishes
   `INVALID_URL` from `UNSUPPORTED_PLATFORM`. Covered by unit tests.
 
-`UrlValidationService` is not wired into the bot yet: the bot still answers any text
-with a hint. Downloading and video sending are not implemented yet.
+* `com.example.telegramvideo.download`: `VideoDownloadService`, `DownloadedVideo`,
+  `VideoDownloadException` (with `Reason`), `VideoDownloadProperties`.
+  Runs yt-dlp through `ProcessBuilder` with `--no-playlist`, MP4 preference and a timeout;
+  each download uses its own temporary directory and the directory is removed on failure.
+
+`UrlValidationService` and `VideoDownloadService` are not wired into the bot yet:
+the bot still answers any text with a hint. Sending videos back and cleanup of a
+successful download are not implemented yet.
 
 ## Architecture
 
@@ -31,7 +38,9 @@ Implemented:
 ```text
 Telegram Bot (TelegramVideoBot)
     ↓
-URL Validation (UrlValidationService)   [not wired into the bot yet]
+URL Validation (UrlValidationService)     [not wired into the bot yet]
+    ↓
+Video Download (VideoDownloadService)     [not wired into the bot yet]
 ```
 
 Planned architecture:
@@ -74,11 +83,19 @@ Telegram Video Sending
 * `TELEGRAM_BOT_TOKEN` has no default: the application fails fast if it is not set.
 * A URL is accepted only with an explicit `http`/`https` scheme; a host matches a platform
   when it equals the platform domain or is a subdomain of it (covers `www`, `m`, `vm`, `vt`).
+* Downloader configuration lives under `video.download.*`:
+  `YT_DLP_PATH`, `VIDEO_DOWNLOAD_DIR`, `VIDEO_DOWNLOAD_TIMEOUT`, `VIDEO_MAX_FILE_SIZE`.
+* On success `VideoDownloadService` keeps the temporary directory and returns it in
+  `DownloadedVideo.workDir`: the caller removes it after the video has been sent.
+* yt-dlp output is redirected to `yt-dlp.log` inside the temporary directory,
+  so the process cannot block on a full pipe; the log is parsed only on failure.
 * Tests exclude `TelegramBotStarterConfiguration` (`src/test/resources/application.yml`),
   so tests never connect to Telegram.
 
 ## Known Problems
 
+* yt-dlp and FFmpeg are not installed on the development machine, so the download
+  path was verified only through unit tests, not against a real video.
 * Maven is not installed system-wide. The build was run with the Maven bundled with IntelliJ IDEA
   (`C:\Program Files\JetBrains\IntelliJ IDEA 2024.2.5\plugins\maven\lib\maven3\bin\mvn.cmd`)
   and `JAVA_HOME` pointed at `C:\Users\Pavel\.jdks\corretto-21.0.7`
@@ -86,12 +103,12 @@ Telegram Video Sending
 
 ## Current Task
 
-Implement the yt-dlp downloader (`VideoDownloadService`).
+Send downloaded videos back to Telegram (`TelegramVideoService`).
 
 ## Next Steps
 
-1. Implement the yt-dlp downloader (`VideoDownloadService`) and wire
-   `UrlValidationService` into the bot.
-2. Send downloaded videos back to Telegram (`TelegramVideoService`).
-3. Add temporary file cleanup, rate limiting and error handling.
-4. Add Docker support.
+1. Send downloaded videos back to Telegram (`TelegramVideoService`).
+2. Wire the bot to url validation, downloading and sending; add `FileCleanupService`
+   and user-facing error messages.
+3. Add concurrent downloads and in-memory rate limiting.
+4. Add Docker support (image with yt-dlp and FFmpeg).
