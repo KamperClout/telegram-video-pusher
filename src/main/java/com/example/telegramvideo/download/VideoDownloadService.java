@@ -3,11 +3,9 @@ package com.example.telegramvideo.download;
 import com.example.telegramvideo.download.VideoDownloadException.Reason;
 import com.example.telegramvideo.url.Platform;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -30,9 +28,11 @@ public class VideoDownloadService {
     private static final String OUTPUT_TEMPLATE = "video.%(ext)s";
 
     private final VideoDownloadProperties properties;
+    private final FileCleanupService fileCleanupService;
 
-    public VideoDownloadService(VideoDownloadProperties properties) {
+    public VideoDownloadService(VideoDownloadProperties properties, FileCleanupService fileCleanupService) {
         this.properties = properties;
+        this.fileCleanupService = fileCleanupService;
     }
 
     /**
@@ -56,10 +56,10 @@ public class VideoDownloadService {
             log.info("Downloaded {} video, id={}, size={} bytes", platform, downloadId, fileSize);
             return new DownloadedVideo(downloadId, platform, file, workDir, fileSize);
         } catch (IOException e) {
-            deleteWorkDir(workDir);
+            fileCleanupService.deleteDirectory(workDir);
             throw new VideoDownloadException(Reason.DOWNLOAD_FAILED, "Failed to read the downloaded file", e);
         } catch (RuntimeException e) {
-            deleteWorkDir(workDir);
+            fileCleanupService.deleteDirectory(workDir);
             throw e;
         }
     }
@@ -155,19 +155,5 @@ public class VideoDownloadService {
         }
 
         return Reason.DOWNLOAD_FAILED;
-    }
-
-    private void deleteWorkDir(Path workDir) {
-        try (Stream<Path> paths = Files.walk(workDir)) {
-            paths.sorted(Comparator.reverseOrder()).forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
-        } catch (IOException | UncheckedIOException e) {
-            log.warn("Failed to delete temporary directory {}", workDir, e);
-        }
     }
 }

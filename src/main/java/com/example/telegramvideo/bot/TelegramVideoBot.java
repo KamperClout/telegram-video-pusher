@@ -1,37 +1,32 @@
 package com.example.telegramvideo.bot;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.example.telegramvideo.request.VideoRequestService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer;
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 /**
- * Telegram interaction only. Business logic is handled by separate services.
+ * Telegram interaction only. Business logic lives in the services.
  */
 @Component
 public class TelegramVideoBot implements SpringLongPollingBot, LongPollingSingleThreadUpdateConsumer {
 
-    private static final Logger log = LoggerFactory.getLogger(TelegramVideoBot.class);
-
     private static final String START_MESSAGE =
             "Привет! Пришли ссылку на видео из YouTube, TikTok или Instagram — я скачаю его и отправлю сюда.";
 
-    private static final String HELP_MESSAGE =
-            "Пришли ссылку на видео из YouTube, TikTok или Instagram.";
-
     private final String botToken;
-    private final TelegramClient telegramClient;
+    private final TelegramMessageService telegramMessageService;
+    private final VideoRequestService videoRequestService;
 
-    public TelegramVideoBot(@Value("${telegram.bot.token}") String botToken, TelegramClient telegramClient) {
+    public TelegramVideoBot(@Value("${telegram.bot.token}") String botToken,
+                            TelegramMessageService telegramMessageService,
+                            VideoRequestService videoRequestService) {
         this.botToken = botToken;
-        this.telegramClient = telegramClient;
+        this.telegramMessageService = telegramMessageService;
+        this.videoRequestService = videoRequestService;
     }
 
     @Override
@@ -54,17 +49,9 @@ public class TelegramVideoBot implements SpringLongPollingBot, LongPollingSingle
         String text = update.getMessage().getText().trim();
 
         if ("/start".equals(text)) {
-            sendText(chatId, START_MESSAGE);
+            telegramMessageService.sendText(chatId, START_MESSAGE);
         } else {
-            sendText(chatId, HELP_MESSAGE);
-        }
-    }
-
-    private void sendText(Long chatId, String text) {
-        try {
-            telegramClient.execute(new SendMessage(chatId.toString(), text));
-        } catch (TelegramApiException e) {
-            log.error("Failed to send message to chat {}", chatId, e);
+            videoRequestService.handle(chatId, text);
         }
     }
 }

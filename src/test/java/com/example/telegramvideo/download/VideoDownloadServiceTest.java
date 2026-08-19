@@ -61,8 +61,10 @@ class VideoDownloadServiceTest {
     }
 
     private VideoDownloadService serviceWith(String ytDlpPath) {
-        return new VideoDownloadService(new VideoDownloadProperties(
-                ytDlpPath, downloadDir.toString(), Duration.ofSeconds(5), 50L * 1024 * 1024));
+        return new VideoDownloadService(
+                new VideoDownloadProperties(ytDlpPath, downloadDir.toString(), Duration.ofSeconds(5),
+                        50L * 1024 * 1024),
+                new FileCleanupService());
     }
 
     private List<Path> workDirs() throws IOException {

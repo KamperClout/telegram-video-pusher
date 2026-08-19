@@ -19,6 +19,12 @@ A real download has not been executed yet: the downloader is not wired into the 
 * Telegram bot `com.example.telegramvideo.bot.TelegramVideoBot`:
   long polling, `/start` answer, a short hint for any other text message.
 * Bot token is read from `TELEGRAM_BOT_TOKEN` via `telegram.bot.token`.
+* `com.example.telegramvideo.request.VideoRequestService`: the whole user flow
+  (validate, download, send, delete the temporary directory in `finally`) and the mapping
+  of failures to user-facing messages. Covered by unit tests.
+* `com.example.telegramvideo.download.FileCleanupService`: recursive removal of a
+  temporary directory; never throws.
+* `com.example.telegramvideo.bot.TelegramMessageService`: text replies.
 * `com.example.telegramvideo.bot.TelegramVideoService`: sends a downloaded file with
   `SendVideo` (`supportsStreaming`), wraps Telegram failures into `TelegramSendException`.
 * `TelegramClientConfig`: a single shared `TelegramClient` bean used by the bot and by
@@ -35,9 +41,8 @@ A real download has not been executed yet: the downloader is not wired into the 
   Runs yt-dlp through `ProcessBuilder` with `--no-playlist`, MP4 preference and a timeout;
   each download uses its own temporary directory and the directory is removed on failure.
 
-`UrlValidationService`, `VideoDownloadService` and `TelegramVideoService` are not wired
-into the bot yet: the bot still answers any text with a hint. Cleanup of a successful
-download is not implemented yet.
+Downloads still run on the single update-consumer thread: one slow download blocks all
+other users. Concurrency and rate limiting are the next step.
 
 ## Architecture
 
@@ -46,11 +51,9 @@ Implemented:
 ```text
 Telegram Bot (TelegramVideoBot)
     ↓
-URL Validation (UrlValidationService)     [not wired into the bot yet]
-    ↓
-Video Download (VideoDownloadService)     [not wired into the bot yet]
-    ↓
-Video Sending (TelegramVideoService)      [not wired into the bot yet]
+VideoRequestService
+    ↓                ↓                 ↓                  ↓
+UrlValidation   VideoDownload    TelegramVideo     FileCleanup
 ```
 
 Planned architecture:
@@ -99,6 +102,9 @@ Telegram Video Sending
   `DownloadedVideo.workDir`: the caller removes it after the video has been sent.
 * yt-dlp output is redirected to `yt-dlp.log` inside the temporary directory,
   so the process cannot block on a full pipe; the log is parsed only on failure.
+* The bot class only talks to Telegram; the flow lives in `VideoRequestService`.
+* `TelegramMessageService` and `FileCleanupService` never throw: a failed reply or a
+  failed cleanup must not break the user flow.
 * The application is run through Docker; nothing is installed on the development machine.
 * The runtime image creates its own `app` user without a fixed uid:
   `eclipse-temurin:21-jre` already occupies uid 1000.
