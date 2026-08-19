@@ -28,6 +28,9 @@ public class VideoDownloadService {
     private static final String LOG_FILE_NAME = "yt-dlp.log";
     private static final String OUTPUT_TEMPLATE = "video.%(ext)s";
 
+    /** yt-dlp says this when it refuses to download a file over --max-filesize. */
+    private static final String TOO_LARGE_MARKER = "max-filesize";
+
     private final VideoDownloadProperties properties;
     private final FileCleanupService fileCleanupService;
 
@@ -47,7 +50,16 @@ public class VideoDownloadService {
         try {
             runYtDlp(url, workDir);
 
-            Path file = findDownloadedFile(workDir);
+            // yt-dlp exits with code 0 when it skips a file over --max-filesize, and it can still
+            // leave a downloaded audio stream behind. Without this check that stream would be sent
+            // to the user as if it were the video.
+            if (tooLargeReported(readLog(workDir))) {
+                throw new VideoDownloadException(Reason.FILE_TOO_LARGE,
+                        "yt-dlp skipped the video: larger than " + properties.maxFileSize() + " bytes");
+            }
+
+            Path file = findDownloadedFile(workDir).orElseThrow(() -> new VideoDownloadException(
+                    Reason.FILE_MISSING, "yt-dlp produced no file in " + workDir));
             long fileSize = Files.size(file);
             if (fileSize > properties.maxFileSize()) {
                 throw new VideoDownloadException(Reason.FILE_TOO_LARGE,
@@ -82,7 +94,9 @@ public class VideoDownloadService {
                 "--no-playlist",
                 "--no-progress",
                 "--restrict-filenames",
-                "--format", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
+                // Stop before downloading something Telegram will not accept anyway.
+                "--max-filesize", String.valueOf(properties.maxFileSize()),
+                "--format", formatSelector(),
                 "--merge-output-format", "mp4",
                 "--output", OUTPUT_TEMPLATE,
                 url);
@@ -114,18 +128,33 @@ public class VideoDownloadService {
         }
     }
 
-    private Path findDownloadedFile(Path workDir) {
+    /**
+     * @return the downloaded file, or empty if yt-dlp produced none
+     */
+    private Optional<Path> findDownloadedFile(Path workDir) {
         try (Stream<Path> files = Files.list(workDir)) {
             // yt-dlp may leave intermediate streams next to the merged file, so take the largest one.
-            Optional<Path> file = files
+            return files
                     .filter(Files::isRegularFile)
                     .filter(path -> !LOG_FILE_NAME.equals(path.getFileName().toString()))
                     .max(Comparator.comparingLong(this::sizeOf));
-            return file.orElseThrow(() -> new VideoDownloadException(Reason.FILE_MISSING,
-                    "yt-dlp produced no file in " + workDir));
         } catch (IOException e) {
             throw new VideoDownloadException(Reason.FILE_MISSING, "Failed to list " + workDir, e);
         }
+    }
+
+    /**
+     * MP4 is preferred and the height is capped, so the result fits into the Telegram limit
+     * more often. {@code <=?} keeps formats whose height yt-dlp does not know.
+     */
+    private String formatSelector() {
+        int maxHeight = properties.maxHeight();
+        return "bv*[height<=?%d][ext=mp4]+ba[ext=m4a]/b[height<=?%d][ext=mp4]/b[height<=?%d]/b"
+                .formatted(maxHeight, maxHeight, maxHeight);
+    }
+
+    static boolean tooLargeReported(String output) {
+        return output.toLowerCase(Locale.ROOT).contains(TOO_LARGE_MARKER);
     }
 
     private long sizeOf(Path path) {

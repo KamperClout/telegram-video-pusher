@@ -48,6 +48,20 @@ class VideoDownloadServiceTest {
         assertThat(VideoDownloadService.classify(output)).isEqualTo(Reason.DOWNLOAD_FAILED);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "File is larger than max-filesize (91234567 > 52428800 bytes), skipping",
+            "ERROR: File is larger than max-filesize"
+    })
+    void recognizesTheMaxFilesizeSkip(String output) {
+        assertThat(VideoDownloadService.tooLargeReported(output)).isTrue();
+    }
+
+    @Test
+    void doesNotSeeAMaxFilesizeSkipInOrdinaryOutput() {
+        assertThat(VideoDownloadService.tooLargeReported("[download] Download completed")).isFalse();
+    }
+
     @Test
     void failsAndCleansUpWhenYtDlpCannotBeStarted() throws IOException {
         VideoDownloadService service = serviceWith("yt-dlp-does-not-exist");
@@ -63,7 +77,7 @@ class VideoDownloadServiceTest {
     private VideoDownloadService serviceWith(String ytDlpPath) {
         return new VideoDownloadService(
                 new VideoDownloadProperties(ytDlpPath, downloadDir.toString(), Duration.ofSeconds(5),
-                        50L * 1024 * 1024, 2, 10),
+                        50L * 1024 * 1024, 1080, 2, 10),
                 new FileCleanupService());
     }
 
