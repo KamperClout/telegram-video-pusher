@@ -2,7 +2,7 @@
 
 ## Status
 
-Telegram bot is configured: it starts, receives updates and answers `/start`.
+Telegram bot answers `/start`. URL validation and platform detection are implemented.
 Build and tests pass.
 
 ## Implemented
@@ -17,8 +17,12 @@ Build and tests pass.
 * Telegram bot `com.example.telegramvideo.bot.TelegramVideoBot`:
   long polling, `/start` answer, a short hint for any other text message.
 * Bot token is read from `TELEGRAM_BOT_TOKEN` via `telegram.bot.token`.
+* `com.example.telegramvideo.url`: `UrlValidationService`, `Platform`, `UrlValidationResult`.
+  Detects YouTube (incl. `youtu.be`), TikTok, Instagram; distinguishes
+  `INVALID_URL` from `UNSUPPORTED_PLATFORM`. Covered by unit tests.
 
-URL validation, downloading and video sending are not implemented yet.
+`UrlValidationService` is not wired into the bot yet: the bot still answers any text
+with a hint. Downloading and video sending are not implemented yet.
 
 ## Architecture
 
@@ -26,6 +30,8 @@ Implemented:
 
 ```text
 Telegram Bot (TelegramVideoBot)
+    ↓
+URL Validation (UrlValidationService)   [not wired into the bot yet]
 ```
 
 Planned architecture:
@@ -66,6 +72,8 @@ Telegram Video Sending
   (the old `telegrambots-spring-boot-starter` is frozen at 6.9.7.1).
 * API v10 does not need the bot username, so only `TELEGRAM_BOT_TOKEN` is used.
 * `TELEGRAM_BOT_TOKEN` has no default: the application fails fast if it is not set.
+* A URL is accepted only with an explicit `http`/`https` scheme; a host matches a platform
+  when it equals the platform domain or is a subdomain of it (covers `www`, `m`, `vm`, `vt`).
 * Tests exclude `TelegramBotStarterConfiguration` (`src/test/resources/application.yml`),
   so tests never connect to Telegram.
 
@@ -78,12 +86,12 @@ Telegram Video Sending
 
 ## Current Task
 
-Implement URL validation and platform detection.
+Implement the yt-dlp downloader (`VideoDownloadService`).
 
 ## Next Steps
 
-1. Implement URL validation and platform detection (`UrlValidationService`).
-2. Implement the yt-dlp downloader (`VideoDownloadService`).
-3. Send downloaded videos back to Telegram (`TelegramVideoService`).
-4. Add temporary file cleanup, rate limiting and error handling.
-5. Add Docker support.
+1. Implement the yt-dlp downloader (`VideoDownloadService`) and wire
+   `UrlValidationService` into the bot.
+2. Send downloaded videos back to Telegram (`TelegramVideoService`).
+3. Add temporary file cleanup, rate limiting and error handling.
+4. Add Docker support.
