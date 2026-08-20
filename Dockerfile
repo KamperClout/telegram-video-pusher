@@ -12,19 +12,31 @@ RUN mvn -B -DskipTests package
 # --- runtime ---
 FROM eclipse-temurin:21-jre
 
-# The nightly channel is used on purpose: platform fixes (TikTok, YouTube) land there
-# weeks before a stable release, and stale yt-dlp means broken downloads.
-# yt-dlp needs python3, FFmpeg is used to merge video and audio into MP4.
-RUN apt-get update \
+# archive.ubuntu.com is served through a CDN that answers 502 on some networks. Set
+# APT_MIRROR (for example http://mirror.yandex.ru/ubuntu) to build through another mirror.
+ARG APT_MIRROR=
+
+# yt-dlp is taken from the nightly channel on purpose: platform fixes (TikTok, YouTube) land
+# there weeks before a stable release, and a stale yt-dlp means broken downloads.
+# yt-dlp needs python3, FFmpeg is used to merge video and audio into MP4, and deno is the
+# JavaScript runtime yt-dlp uses to read YouTube formats hidden behind JS.
+# Both tools come from GitHub rather than from Docker Hub images, which are not reliably
+# reachable from every network. The deno build is amd64, which is what we build and run on.
+RUN if [ -n "$APT_MIRROR" ]; then \
+        sed -i "s|http://archive.ubuntu.com/ubuntu|$APT_MIRROR|g; s|http://security.ubuntu.com/ubuntu|$APT_MIRROR|g" \
+            /etc/apt/sources.list.d/ubuntu.sources; \
+    fi \
+    && apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg python3 curl ca-certificates \
     && curl -sSL https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp \
        -o /usr/local/bin/yt-dlp \
     && chmod +x /usr/local/bin/yt-dlp \
+    && curl -sSL https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip \
+       -o /tmp/deno.zip \
+    && python3 -m zipfile -e /tmp/deno.zip /usr/local/bin/ \
+    && chmod +x /usr/local/bin/deno \
+    && rm -f /tmp/deno.zip \
     && rm -rf /var/lib/apt/lists/*
-
-# YouTube hides some formats behind JavaScript; yt-dlp needs a JS runtime to read them.
-COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
-RUN chmod +x /usr/local/bin/deno
 
 # The base image already uses uid 1000, so let useradd pick a free one.
 RUN useradd --create-home app

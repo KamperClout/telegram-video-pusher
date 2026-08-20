@@ -58,6 +58,14 @@ class VideoDownloadServiceTest {
     }
 
     @Test
+    void buildsAFormatSelectorForTheGivenHeight() {
+        assertThat(VideoDownloadService.formatSelector(720))
+                .contains("height<=?720")
+                .contains("ext=mp4")
+                .doesNotContain("1080");
+    }
+
+    @Test
     void doesNotSeeAMaxFilesizeSkipInOrdinaryOutput() {
         assertThat(VideoDownloadService.tooLargeReported("[download] Download completed")).isFalse();
     }
@@ -77,7 +85,7 @@ class VideoDownloadServiceTest {
     private VideoDownloadService serviceWith(String ytDlpPath) {
         return new VideoDownloadService(
                 new VideoDownloadProperties(ytDlpPath, downloadDir.toString(), Duration.ofSeconds(5),
-                        50L * 1024 * 1024, 1080, 2, 10),
+                        50L * 1024 * 1024, java.util.List.of(1080, 720, 480), 2, 10),
                 new FileCleanupService());
     }
 

@@ -48,26 +48,27 @@ public class VideoDownloadService {
         Path workDir = createWorkDir(downloadId);
 
         try {
-            runYtDlp(url, workDir);
+            List<Integer> heights = properties.heights();
 
-            // yt-dlp exits with code 0 when it skips a file over --max-filesize, and it can still
-            // leave a downloaded audio stream behind. Without this check that stream would be sent
-            // to the user as if it were the video.
-            if (tooLargeReported(readLog(workDir))) {
-                throw new VideoDownloadException(Reason.FILE_TOO_LARGE,
-                        "yt-dlp skipped the video: larger than " + properties.maxFileSize() + " bytes");
+            for (int attempt = 0; attempt < heights.size(); attempt++) {
+                int height = heights.get(attempt);
+                Optional<DownloadedVideo> video = attemptDownload(url, platform, downloadId, workDir, height);
+                if (video.isPresent()) {
+                    return video.get();
+                }
+
+                boolean lastAttempt = attempt == heights.size() - 1;
+                if (lastAttempt) {
+                    throw new VideoDownloadException(Reason.FILE_TOO_LARGE,
+                            "Video does not fit into %d bytes even at %dp".formatted(
+                                    properties.maxFileSize(), height));
+                }
+
+                log.info("Video is over the limit at {}p, retrying at {}p", height, heights.get(attempt + 1));
+                fileCleanupService.clearDirectory(workDir);
             }
 
-            Path file = findDownloadedFile(workDir).orElseThrow(() -> new VideoDownloadException(
-                    Reason.FILE_MISSING, "yt-dlp produced no file in " + workDir));
-            long fileSize = Files.size(file);
-            if (fileSize > properties.maxFileSize()) {
-                throw new VideoDownloadException(Reason.FILE_TOO_LARGE,
-                        "Downloaded file is %d bytes, limit is %d".formatted(fileSize, properties.maxFileSize()));
-            }
-
-            log.info("Downloaded {} video, id={}, size={} bytes", platform, downloadId, fileSize);
-            return new DownloadedVideo(downloadId, platform, file, workDir, fileSize);
+            throw new VideoDownloadException(Reason.DOWNLOAD_FAILED, "No height was configured");
         } catch (IOException e) {
             fileCleanupService.deleteDirectory(workDir);
             throw new VideoDownloadException(Reason.DOWNLOAD_FAILED, "Failed to read the downloaded file", e);
@@ -75,6 +76,32 @@ public class VideoDownloadService {
             fileCleanupService.deleteDirectory(workDir);
             throw e;
         }
+    }
+
+    /**
+     * @return the video, or empty when it does not fit into the size limit at this height
+     */
+    private Optional<DownloadedVideo> attemptDownload(String url, Platform platform, String downloadId,
+                                                      Path workDir, int height) throws IOException {
+        runYtDlp(url, workDir, height);
+
+        // yt-dlp exits with code 0 when it skips a file over --max-filesize, and it can still
+        // leave a downloaded audio stream behind. Without this check that stream would be sent
+        // to the user as if it were the video.
+        if (tooLargeReported(readLog(workDir))) {
+            return Optional.empty();
+        }
+
+        Path file = findDownloadedFile(workDir).orElseThrow(() -> new VideoDownloadException(
+                Reason.FILE_MISSING, "yt-dlp produced no file in " + workDir));
+
+        long fileSize = Files.size(file);
+        if (fileSize > properties.maxFileSize()) {
+            return Optional.empty();
+        }
+
+        log.info("Downloaded {} video at {}p, id={}, size={} bytes", platform, height, downloadId, fileSize);
+        return Optional.of(new DownloadedVideo(downloadId, platform, file, workDir, fileSize));
     }
 
     private Path createWorkDir(String downloadId) {
@@ -87,7 +114,7 @@ public class VideoDownloadService {
         }
     }
 
-    private void runYtDlp(String url, Path workDir) {
+    private void runYtDlp(String url, Path workDir, int height) {
         // The URL is always passed as a separate argument, never concatenated into a command line.
         ProcessBuilder processBuilder = new ProcessBuilder(
                 properties.ytDlpPath(),
@@ -96,7 +123,7 @@ public class VideoDownloadService {
                 "--restrict-filenames",
                 // Stop before downloading something Telegram will not accept anyway.
                 "--max-filesize", String.valueOf(properties.maxFileSize()),
-                "--format", formatSelector(),
+                "--format", formatSelector(height),
                 "--merge-output-format", "mp4",
                 "--output", OUTPUT_TEMPLATE,
                 url);
@@ -147,10 +174,9 @@ public class VideoDownloadService {
      * MP4 is preferred and the height is capped, so the result fits into the Telegram limit
      * more often. {@code <=?} keeps formats whose height yt-dlp does not know.
      */
-    private String formatSelector() {
-        int maxHeight = properties.maxHeight();
+    static String formatSelector(int height) {
         return "bv*[height<=?%d][ext=mp4]+ba[ext=m4a]/b[height<=?%d][ext=mp4]/b[height<=?%d]/b"
-                .formatted(maxHeight, maxHeight, maxHeight);
+                .formatted(height, height, height);
     }
 
     static boolean tooLargeReported(String output) {
