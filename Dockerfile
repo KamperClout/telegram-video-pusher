@@ -28,6 +28,10 @@ RUN chmod +x /usr/local/bin/deno
 
 # The base image already uses uid 1000, so let useradd pick a free one.
 RUN useradd --create-home app
+
+# A named volume inherits ownership from the image, so the directory must exist and belong
+# to the application user. Without this the container cannot write into a fresh volume.
+RUN mkdir -p /var/tmp/telegram-video && chown app:app /var/tmp/telegram-video
 USER app
 
 WORKDIR /app

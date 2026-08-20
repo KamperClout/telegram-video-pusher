@@ -128,6 +128,11 @@ Telegram Video Sending
 
 ## Known Problems
 
+* The download directory must belong to the `app` user inside the image: a named volume
+  inherits ownership from the image, and Docker otherwise creates it as root, which makes
+  every download fail with `AccessDeniedException`. The Dockerfile creates and chowns
+  `/var/tmp/telegram-video` for this reason.
+
 * Rate limit windows are kept in a `ConcurrentHashMap` that is never pruned; entries of
   chats that never come back stay in memory. Harmless at MVP scale.
 * There is a single bot token, so only one instance may run at a time. The server instance
