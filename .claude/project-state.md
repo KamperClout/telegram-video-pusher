@@ -44,6 +44,10 @@ A real download has not been executed yet: the downloader is not wired into the 
 * `Dockerfile` (multi-stage: Maven build, `eclipse-temurin:21-jre` runtime with
   yt-dlp, FFmpeg and deno), `compose.yaml`, `compose.server.yaml`, `.dockerignore`,
   `.env.example`.
+* `.github/workflows/build.yml`: on every push to `main` it runs `mvn test`, builds the
+  image and publishes it to `ghcr.io/kamperclout/telegram-video-pusher`
+  (`latest` and a commit-sha tag). The package is public, so the server pulls it without
+  credentials. The server runs that image, not a locally transferred one.
   Image builds and runs; the bot token is taken from an uncommitted `.env`.
 * `com.example.telegramvideo.download`: `VideoDownloadService`, `DownloadedVideo`,
   `VideoDownloadException` (with `Reason`), `VideoDownloadProperties`.
@@ -137,8 +141,9 @@ Telegram Video Sending
   chats that never come back stay in memory. Harmless at MVP scale.
 * There is a single bot token, so only one instance may run at a time. The server instance
   is the live one; the local container must stay stopped while it runs.
-* The image is transferred with `docker save | ssh | docker load` (~1.3 GB, minutes over a
-  home uplink). A registry would be faster but needs an account.
+* Deployment on the server is still triggered by hand
+  (`cd /opt/telegram-video && docker compose pull && docker compose up -d`);
+  GitHub Actions only builds and publishes the image.
 
 * The default DNS resolvers on the developer's provider return no A record for
   `www.youtube.com`, so yt-dlp failed with `[Errno -2] Name or service not known`.
