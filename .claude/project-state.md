@@ -24,8 +24,9 @@ A real download has not been executed yet: the downloader is not wired into the 
   of failures to user-facing messages. Covered by unit tests.
 * `com.example.telegramvideo.ratelimit`: `RateLimitService` (fixed one-minute window per
   chat, in memory), `RateLimitProperties`, `ClockConfig`. Covered by unit tests.
-* Downloads stop early when the file would exceed the limit: `--max-filesize` plus a height
-  cap (`VIDEO_MAX_HEIGHT`, default 1080). yt-dlp exits with code 0 in that case and can leave
+* Downloads stop early when the file would exceed the limit: `--max-filesize` plus a ladder
+  of heights (`VIDEO_HEIGHTS`, default `1080,720,480`) — a video that does not fit is retried
+  at the next height instead of being refused. yt-dlp exits with code 0 in that case and can leave
   an audio stream behind, so its output is checked before a file is picked.
 * `DownloadExecutorConfig`: a bounded pool (`VIDEO_DOWNLOAD_POOL_SIZE`, default 2) with a
   bounded queue (`VIDEO_DOWNLOAD_QUEUE_SIZE`, default 10); a full queue is answered with
@@ -131,6 +132,14 @@ Telegram Video Sending
   so tests never connect to Telegram.
 
 ## Known Problems
+
+* `sign in to confirm you're not a bot` from YouTube is classified as `PRIVATE_VIDEO`, so the
+  user is told the video is private. It should have its own reason and message.
+* Building the image needs Docker Hub and archive.ubuntu.com. On the developer's network both
+  are unreliable: deno is therefore fetched from GitHub, and `APT_MIRROR` (build arg, set in
+  the local `.env`) switches the Ubuntu mirror. CI uses the defaults.
+* YouTube starts asking `sign in to confirm you're not a bot` on the developer's home IP after
+  many downloads in a row. The server is unaffected; local testing is better done on TikTok.
 
 * The download directory must belong to the `app` user inside the image: a named volume
   inherits ownership from the image, and Docker otherwise creates it as root, which makes
