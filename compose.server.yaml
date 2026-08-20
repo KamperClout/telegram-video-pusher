@@ -1,8 +1,9 @@
 # Server configuration: 1 vCPU / 1 GB RAM.
-# Used as: docker compose -f compose.server.yaml up -d
+# Deployed to /opt/telegram-video/compose.yaml on the server.
+# Update with: docker compose pull && docker compose up -d
 services:
   bot:
-    image: telegram-video-bot:latest
+    image: ghcr.io/kamperclout/telegram-video-pusher:latest
     restart: unless-stopped
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
